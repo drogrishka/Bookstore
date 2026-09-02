@@ -88,17 +88,20 @@ public static class SeedData
             new Book
             {
                 Author = author1,
-                Title = "Inferno"
+                Title = "Inferno",
+                SubTitle = "Inferno1"
             },
             new Book
             {
                 Author = author2,
-                Title = "The Raven"
+                Title = "The Raven",
+                SubTitle = "The Raven1"
             },
             new Book
             {
                 Author = author3,
-                Title = "Anna Karenina"
+                Title = "Anna Karenina",
+                SubTitle = "Anna Karenina1"
             });
         await dbContext.SaveChangesAsync(cancellationToken);
     }
