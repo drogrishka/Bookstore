@@ -1,326 +1,319 @@
-# Bookstore backend (.NET 10)
+# Bookstore Backend
 
-Production-oriented reference implementation of the requested bookstore back-end.
+ASP.NET Core REST API for managing and searching books.
 
-## Requirements covered
+The project implements the requirements from the bookstore backend assignment, including OAuth2 authentication, pagination, Swagger testing and Docker support.
 
-- .NET 10 LTS / ASP.NET Core.
-- Layered solution: `Domain`, `Application`, `Infrastructure`, `Api`.
-- Requested `Author` and `Book` object model and validation.
-- `Book` CRUD REST API.
-- Search by title and/or author with pagination.
-- OAuth 2.0 authorization server implemented with OpenIddict.
-- CRUD accepts only **client credentials** tokens with `books.manage`.
-- Search accepts only **implicit-flow** tokens with `books.search`.
-- An additional `bookstore_grant` token claim prevents a token from the wrong flow being reused even if a scope is accidentally over-granted.
-- ASP.NET Core Identity login for the interactive implicit flow.
-- Swagger/OpenAPI configured with operation-specific OAuth schemes.
-- Browser test client for implicit search.
-- Console test client for client-credentials CRUD.
-- EF Core **SQL Server** provider for Docker/production-style execution.
-- EF Core **InMemory** provider for zero-setup direct development/testing.
-- Docker/Docker Compose, including SQL Server 2025 Developer container.
-- Health check, Problem Details exception handling and unit tests.
+## Technologies
 
-> The OAuth 2.0 implicit flow is a legacy flow and is not recommended for new browser applications. It is implemented
-> because it is explicitly required by the assignment. For a new system, prefer Authorization Code + PKCE.
+* .NET 10
+* ASP.NET Core Web API
+* Entity Framework Core
+* SQL Server
+* EF Core InMemory
+* OpenIddict
+* ASP.NET Core Identity
+* Swagger / OpenAPI
+* Docker / Docker Compose
+* xUnit
 
-## Fastest start: Docker Desktop
-
-From the repository root:
-
-```bash
-docker compose up --build
-```
-
-Docker Compose starts:
-
-- the API at `http://localhost:8080`;
-- SQL Server 2025 Developer on host port `14333`;
-- a persistent SQL Server data volume.
-
-Open:
-
-- Search Swagger (implicit client preconfigured): `http://localhost:8080/swagger`
-- CRUD Swagger (M2M client preconfigured): `http://localhost:8080/swagger-m2m`
-- Browser implicit-flow client: `http://localhost:8080/test-client/`
-- Health: `http://localhost:8080/health`
-
-No local SQL Server installation is needed.
-
-To reset all Docker data:
-
-```bash
-docker compose down -v
-```
-
-## Visual Studio / VS Code: zero database setup
-
-Requirements:
-
-- .NET 10 SDK
-- Visual Studio 2026+ with the ASP.NET workload, or VS Code + C# Dev Kit
-
-Development configuration uses EF Core InMemory, so direct execution requires no database service:
-
-```bash
-dotnet restore
-dotnet run --project src/Bookstore.Api
-```
-
-Launch profiles expose:
-
-- `https://localhost:7044`
-- `http://localhost:5044`
-
-The repository also includes `Bookstore.slnLaunch`, a shared Visual Studio solution launch profile that starts `Bookstore.Api`. The Visual Studio HTTPS project profile opens Swagger automatically.
-
-## Development credentials
-
-The following values are intentionally development-only.
-
-### Machine-to-machine CRUD client
-
-- client id: `bookstore-m2m`
-- client secret: `dev-secret-change-me`
-- scope: `books.manage`
-- token endpoint: `/connect/token`
-
-Request a token:
-
-```bash
-curl -X POST http://localhost:8080/connect/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials&client_id=bookstore-m2m&client_secret=dev-secret-change-me&scope=books.manage"
-```
-
-Use the returned token:
-
-```bash
-curl http://localhost:8080/api/books/1 \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-Create a book:
-
-```bash
-curl -X POST http://localhost:8080/api/books \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Domain-Driven Design",
-    "subTitle": "Tackling Complexity in the Heart of Software",
-    "author": {
-      "authorId": 1,
-      "name": "Eric Evans"
-    }
-  }'
-```
-
-### Interactive search client
-
-- client id: `bookstore-browser`
-- scope: `books.search`
-- authorization endpoint: `/connect/authorize`
-
-Seeded development user:
-
-- email: `demo@bookstore.local`
-- password: `Demo123!`
-
-Open `http://localhost:8080/test-client/`, select **Sign in / get search token**, sign in, and run a search.
-
-Example endpoint:
+## Solution structure
 
 ```text
-GET /api/books/search?title=clean&author=martin&page=1&pageSize=20
+src/
+  Bookstore.Api
+  Bookstore.Application
+  Bookstore.Domain
+  Bookstore.Infrastructure
+  Bookstore.Client.Console
+
+tests/
+  Bookstore.Application.Tests
 ```
 
-`title` and `author` are optional and can be combined. `pageSize` is limited to 1..100.
+### Bookstore.Domain
 
-## Swagger OAuth testing
+Contains the main entities:
 
-Swagger contains two OAuth definitions and assigns them only to the operations that need them. Because Swagger UI has one default OAuth client id per UI instance, two UI routes are provided over the same OpenAPI document.
+* `Book`
+* `Author`
 
-For CRUD, open `http://localhost:8080/swagger-m2m` and authorize `oauth2-m2m` with:
+### Bookstore.Application
 
-- client id `bookstore-m2m`
-- client secret `dev-secret-change-me`
-- scope `books.manage`
+Contains DTOs, request models and the `IBookService` abstraction.
 
-For search, open `http://localhost:8080/swagger` and authorize `oauth2-implicit` with:
+### Bookstore.Infrastructure
 
-- client id `bookstore-browser`
-- scope `books.search`
-- development login shown above
+Contains Entity Framework Core configuration and the implementation of the book service.
 
-Server-side policies independently enforce the flow marker and scope, so Swagger metadata is not relied upon for security.
+### Bookstore.Api
 
-## Console test client
+Contains the REST API, OAuth configuration, authorization policies, Swagger and the browser test client.
 
-With the API running on Docker:
+### Bookstore.Client.Console
 
-```bash
-dotnet run --project src/Bookstore.Client.Console -- http://localhost:8080
+Simple console application for testing the client-credentials flow.
+
+## API
+
+### Book CRUD
+
+CRUD operations are protected with OAuth2 Client Credentials Flow.
+
+```text
+GET    /api/books
+GET    /api/books/{bookId}
+POST   /api/books
+PUT    /api/books/{bookId}
+DELETE /api/books/{bookId}
 ```
 
-The client obtains a client-credentials token, then exercises list/create/read/update/delete.
+Required scope:
 
-Optional environment-variable overrides:
+```text
+books.manage
+```
 
-- `BOOKSTORE_CLIENT_ID`
-- `BOOKSTORE_CLIENT_SECRET`
+### Search
 
-For a direct Visual Studio HTTP launch, pass `http://localhost:5044` instead.
+Books can be searched by title and/or author.
 
-## REST API
+```text
+GET /api/books/search
+```
 
-### CRUD — client credentials only
+Example:
 
-- `GET /api/books?page=1&pageSize=20`
-- `GET /api/books/{bookId}`
-- `POST /api/books`
-- `PUT /api/books/{bookId}`
-- `DELETE /api/books/{bookId}`
+```text
+GET /api/books/search?title=shadow&author=zafon&page=1&pageSize=20
+```
 
-Required: scope `books.manage` and grant marker `client_credentials`.
+Search supports pagination.
 
-### Search — implicit flow only
+Required scope:
 
-- `GET /api/books/search?title={title}&author={author}&page=1&pageSize=20`
+```text
+books.search
+```
 
-Required: scope `books.search` and grant marker `implicit`.
+The search endpoint uses the OAuth2 Implicit Flow because it is explicitly required by the assignment.
+
+For a new browser application I would normally use Authorization Code Flow with PKCE instead.
 
 ## Object model
 
-Responses follow the requested shape:
+Example book response:
 
 ```json
 {
   "bookId": 1,
   "author": {
     "authorId": 1,
-    "name": "Eric Evans"
+    "name": "Carlos Ruiz Zafon"
   },
-  "title": "Domain-Driven Design",
-  "subTitle": "Tackling Complexity in the Heart of Software"
+  "title": "The Shadow of the Wind",
+  "subTitle": null
 }
 ```
 
-Validation:
-
-- `Author.authorId`: `int32`, required in the response model
-- `Author.name`: required, 3..100 characters
-- `Book.bookId`: `int32`, required in the response model
-- `Book.author`: required
-- `Book.title`: required, 3..100 characters
-- `Book.subTitle`: optional string
-
-For create/update, a positive existing `authorId` must match the supplied author name. `authorId = 0` resolves an
-existing author with the same name or creates a new author.
-
-## Database modes
-
-`Database:Provider` supports exactly two values:
-
-- `InMemory` — default in `appsettings.Development.json`; ideal for opening the solution and pressing Run.
-- `SqlServer` — used by Docker Compose and intended for persistent/production-style execution.
-
-Docker Compose uses SQL Server 2025 Developer and persists `/var/opt/mssql` in the `bookstore-sql-data` volume.
-
-For local SQL Server outside Docker, set for example:
+Validation rules:
 
 ```text
-Database__Provider=SqlServer
-ConnectionStrings__Bookstore=Server=localhost,14333;Database=Bookstore;User Id=sa;Password=...;Encrypt=True;TrustServerCertificate=True
+Author.name    required, 3-100 characters
+Book.title     required, 3-100 characters
+Book.author    required
+Book.subTitle  optional
 ```
 
-## Database lifecycle and migrations
+## Running with Docker
 
-For zero-preparation Development/Docker evaluation, `Database:InitializeOnStartup=true` uses `EnsureCreated()`. Demo
-books/user data are seeded only when `Seed:Enabled=true`; OAuth client bootstrap is handled separately.
+Docker is the easiest way to start the complete application.
 
-For a real production rollout:
+Copy the environment template:
 
-1. set `Database:InitializeOnStartup=false`;
-2. use `Database:Provider=SqlServer`;
-3. create/review/apply EF Core migrations as part of deployment.
+```powershell
+Copy-Item .env.example .env
+```
 
-Example commands:
+On Linux/macOS:
 
 ```bash
-dotnet ef migrations add InitialCreate \
-  --project src/Bookstore.Infrastructure \
-  --startup-project src/Bookstore.Api
-
-dotnet ef database update \
-  --project src/Bookstore.Infrastructure \
-  --startup-project src/Bookstore.Api
+cp .env.example .env
 ```
 
-The infrastructure project includes `Microsoft.EntityFrameworkCore.Design` and a design-time DbContext factory.
-
-## Run tests
+Set local passwords in `.env` and then run:
 
 ```bash
-dotnet test Bookstore.sln
+docker compose up --build
 ```
 
-The unit tests use an isolated EF Core InMemory database and cover search filters, pagination and missing-book behavior.
-
-## Production configuration
-
-When `ASPNETCORE_ENVIRONMENT=Production`:
-
-- configure `Database:Provider=SqlServer` and a production connection string;
-- the known development machine-client secret is rejected;
-- OpenIddict development certificates are not used;
-- provide signing and encryption PFX certificates;
-- OpenIddict keeps the HTTPS requirement enabled;
-- the embedded Swagger/test-client UI is not served;
-- use only exact production redirect URIs;
-- keep `Database:InitializeOnStartup=false` and deploy reviewed migrations.
-
-Relevant environment-variable names:
+The application will be available at:
 
 ```text
-Database__Provider
-ConnectionStrings__Bookstore
-Database__InitializeOnStartup
-Seed__Enabled
-Auth__MachineClientSecret
-Auth__BrowserRedirectUris__0
-Auth__Certificates__SigningPath
-Auth__Certificates__SigningPassword
-Auth__Certificates__EncryptionPath
-Auth__Certificates__EncryptionPassword
+API:            http://localhost:8080
+Swagger Search: http://localhost:8080/swagger
+Swagger CRUD:   http://localhost:8080/swagger-m2m
+Test Client:    http://localhost:8080/test-client/
+Health:         http://localhost:8080/health
 ```
 
-When deployed behind a reverse proxy, also configure forwarded headers and trusted proxies for that environment instead of
-blindly trusting all forwarded headers.
+Docker Compose also starts SQL Server.
 
-## Solution structure
+To remove the containers and database volume:
+
+```bash
+docker compose down -v
+```
+
+## Running from Visual Studio / VS Code
+
+The Development configuration uses EF Core InMemory, so SQL Server is not required.
+
+Configure the local secrets:
+
+```bash
+dotnet user-secrets set "Auth:MachineClientSecret" "YOUR_CLIENT_SECRET" --project src/Bookstore.Api
+
+dotnet user-secrets set "Seed:DemoUserPassword" "YOUR_DEMO_PASSWORD" --project src/Bookstore.Api
+```
+
+Then run:
+
+```bash
+dotnet restore
+dotnet run --project src/Bookstore.Api
+```
+
+Development URLs:
 
 ```text
-Bookstore.sln
-src/
-  Bookstore.Domain/          entities
-  Bookstore.Application/     DTOs, request models, service contracts
-  Bookstore.Infrastructure/  EF Core, Identity persistence, book service
-  Bookstore.Api/             REST API, OAuth/OIDC server, Swagger, web test client
-  Bookstore.Client.Console/  client-credentials test client
-tests/
-  Bookstore.Application.Tests/
+https://localhost:7044
+http://localhost:5044
 ```
 
-## Design choices
+## OAuth clients
 
-- **OpenIddict instead of Duende IdentityServer:** fulfills both required OAuth flows without introducing a commercial
-  production-license dependency for this solution.
-- **Authorization server and resource API in one ASP.NET Core host:** minimizes startup steps while preserving OAuth token
-  issuance and validation boundaries; the application layers are still separate.
-- **SQL Server + InMemory:** SQL Server covers persistent/production-style use and the assignment requirement; InMemory
-  gives true one-click local development.
-- **DTOs instead of EF entities:** avoids persistence coupling and over-posting.
-- **Flow + scope policies:** an implicit token cannot call CRUD and a machine token cannot call user search.
-- **No secret/certificate fallback in Production:** deployment fails fast when required security material is missing.
+Two OAuth clients are configured.
+
+### Machine client
+
+```text
+Client ID: bookstore-m2m
+Flow:      Client Credentials
+Scope:     books.manage
+```
+
+This client is used for Book CRUD operations.
+
+The client secret is configured locally and is not stored in the repository.
+
+### Browser client
+
+```text
+Client ID: bookstore-browser
+Flow:      Implicit
+Scope:     books.search
+```
+
+This client is used by Swagger and the browser test client for authenticated book searches.
+
+## Getting a CRUD token
+
+Example:
+
+```bash
+curl -X POST http://localhost:8080/connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials&client_id=bookstore-m2m&client_secret=YOUR_SECRET&scope=books.manage"
+```
+
+Use the returned access token:
+
+```bash
+curl http://localhost:8080/api/books \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+```
+
+## Swagger
+
+There are two Swagger UI routes because the API demonstrates two different OAuth flows.
+
+For CRUD:
+
+```text
+http://localhost:8080/swagger-m2m
+```
+
+Use:
+
+```text
+client_id: bookstore-m2m
+scope:     books.manage
+```
+
+For search:
+
+```text
+http://localhost:8080/swagger
+```
+
+Use:
+
+```text
+client_id: bookstore-browser
+scope:     books.search
+```
+
+## Database
+
+Two EF Core providers are supported.
+
+`InMemory` is used for simple local development.
+
+`SqlServer` is used by Docker Compose.
+
+The database provider can be selected through configuration:
+
+```text
+Database:Provider
+```
+
+Demo data is only inserted when:
+
+```text
+Seed:Enabled=true
+```
+
+## Tests
+
+Run the tests with:
+
+```bash
+dotnet test
+```
+
+The current unit tests cover book retrieval, search filters, pagination and validation-related service behavior.
+
+## Design decisions
+
+### Separate application layers
+
+The solution separates API, application logic, domain objects and persistence so that HTTP and database concerns do not need to be mixed with the core models.
+
+### Two OAuth flows
+
+The assignment requires Client Credentials for CRUD and Implicit Flow for search, so separate clients and authorization policies are used for the two cases.
+
+### Scope and grant validation
+
+The API checks both the required OAuth scope and the flow that created the token. This prevents a search token from being used for CRUD operations, or a machine token from being used for interactive search.
+
+### InMemory and SQL Server
+
+InMemory makes the project easy to start directly from Visual Studio, while SQL Server in Docker provides a persistent relational database without requiring a local SQL Server installation.
+
+## Notes
+
+The OAuth2 Implicit Flow is included to match the assignment requirements. For a new frontend application, Authorization Code Flow with PKCE would be the preferred approach.
+
+Secrets, local environment files, build output and development certificates are excluded from source control.
