@@ -80,30 +80,26 @@ public static class SeedData
             return;
         }
 
-        var evans = new Author { Name = "Eric Evans" };
-        var martin = new Author { Name = "Robert C. Martin" };
-        var fowler = new Author { Name = "Martin Fowler" };
+        var author1 = new Author { Name = "Dante Alighieri" };
+        var author2 = new Author { Name = "Edgar Allan Poe" };
+        var author3 = new Author { Name = "Leo Tolstoy" };
 
         dbContext.Books.AddRange(
             new Book
             {
-                Author = evans,
-                Title = "Domain-Driven Design",
-                SubTitle = "Tackling Complexity in the Heart of Software"
+                Author = author1,
+                Title = "Inferno"
             },
             new Book
             {
-                Author = martin,
-                Title = "Clean Code",
-                SubTitle = "A Handbook of Agile Software Craftsmanship"
+                Author = author2,
+                Title = "The Raven"
             },
             new Book
             {
-                Author = fowler,
-                Title = "Refactoring",
-                SubTitle = "Improving the Design of Existing Code"
+                Author = author3,
+                Title = "Anna Karenina"
             });
-
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }
