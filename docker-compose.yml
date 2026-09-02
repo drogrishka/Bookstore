@@ -1,0 +1,46 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Bookstore_dev_Passw0rd!"
+      MSSQL_PID: "Developer"
+    ports:
+      - "14333:1433"
+    volumes:
+      - bookstore-sql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" >/dev/null
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  bookstore:
+    build:
+      context: .
+      dockerfile: src/Bookstore.Api/Dockerfile
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Database__Provider: SqlServer
+      ConnectionStrings__Bookstore: >-
+        Server=sqlserver,1433;Database=Bookstore;User Id=sa;Password=Bookstore_dev_Passw0rd!;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True
+      Database__InitializeOnStartup: "true"
+      Auth__MachineClientSecret: dev-secret-change-me
+      Seed__Enabled: "true"
+      Seed__DemoUserEmail: demo@bookstore.local
+      Seed__DemoUserPassword: Demo123!
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  bookstore-sql-data:

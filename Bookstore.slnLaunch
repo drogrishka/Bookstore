@@ -1,0 +1,11 @@
+[
+  {
+    "Name": "Bookstore API",
+    "Projects": [
+      {
+        "Path": "src\\Bookstore.Api\\Bookstore.Api.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

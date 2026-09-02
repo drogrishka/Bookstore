@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OAuth callback</title>
+</head>
+<body>
+<p>Completing sign-in...</p>
+<script>
+const fragment = new URLSearchParams(location.hash.substring(1));
+const error = fragment.get("error");
+if (error) {
+  document.body.textContent = `${error}: ${fragment.get("error_description") || ""}`;
+} else {
+  const expectedState = sessionStorage.getItem("bookstore_oauth_state");
+  const actualState = fragment.get("state");
+  const token = fragment.get("access_token");
+
+  if (!expectedState || expectedState !== actualState) {
+    document.body.textContent = "OAuth state validation failed.";
+  } else if (!token) {
+    document.body.textContent = "No access token was returned.";
+  } else {
+    sessionStorage.setItem("bookstore_search_access_token", token);
+    sessionStorage.removeItem("bookstore_oauth_state");
+    location.replace("/test-client/");
+  }
+}
+</script>
+</body>
+</html>
